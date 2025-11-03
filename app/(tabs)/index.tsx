@@ -3,6 +3,7 @@ import {
   registerForPushNotificationsAsync,
   sendPushNotification
 } from "@/services/notifications";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -16,12 +17,14 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import * as api from "../../services/api";
 
 const { width } = Dimensions.get("window");
 
 const HomeScreen = () => {
   const router = useRouter();
   const [expoPushToken, setExpoPushToken] = useState<string>("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const scaleAnim = new Animated.Value(1);
 
   // Dapatkan token hanya untuk keperluan tombol tes di UI ini
@@ -41,6 +44,74 @@ const HomeScreen = () => {
       Alert.alert(
         "Token Belum Siap",
         "Expo Push Token belum berhasil didapatkan. Coba lagi nanti."
+      );
+    }
+  };
+
+  const processImage = async (imageUri: string) => {
+    setIsProcessing(true);
+    try {
+      const result = await api.uploadFoodImage(imageUri);
+
+      if (result.success) {
+        Alert.alert(
+          "🎉 Berhasil!",
+          `Makanan teridentifikasi sebagai: ${result.label}.\n\n✅ Item telah ditambahkan ke inventaris.`,
+          [
+            {
+              text: "Lihat Inventaris",
+              onPress: () => router.push("/(tabs)/inventory")
+            },
+            { text: "Tambah Lagi", style: "cancel" }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "❌ Gagal",
+          result.message || "Tidak dapat mengidentifikasi makanan. Coba lagi."
+        );
+      }
+    } catch (error: any) {
+      console.error("Error in processImage:", error);
+      Alert.alert(
+        "⚠️ Error",
+        error.message || "Terjadi kesalahan saat memproses gambar."
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const selectFromGallery = async () => {
+    try {
+      // Request permission to access media library
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert(
+          "Izin Diperlukan",
+          "Mohon berikan izin untuk mengakses galeri foto Anda."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await processImage(result.assets[0].uri);
+      }
+    } catch (error: any) {
+      console.error("Error in selectFromGallery:", error);
+      Alert.alert(
+        "⚠️ Error",
+        error.message || "Terjadi kesalahan saat memilih gambar dari galeri."
       );
     }
   };
@@ -95,24 +166,63 @@ const HomeScreen = () => {
             <TouchableOpacity
               style={[styles.actionCard, styles.primaryCard]}
               onPress={() => animatePress(() => router.push("/camera"))}
-              activeOpacity={0.8}
+              activeOpacity={isProcessing ? 1 : 0.8}
+              disabled={isProcessing}
             >
               <LinearGradient
-                colors={["#4CAF50", "#45a049"]}
+                colors={
+                  isProcessing ? ["#CCCCCC", "#AAAAAA"] : ["#4CAF50", "#45a049"]
+                }
                 style={styles.cardGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
                 <View style={styles.cardIcon}>
-                  <Text style={styles.iconEmoji}>📷</Text>
+                  <Text style={styles.iconEmoji}>
+                    {isProcessing ? "⏳" : "📷"}
+                  </Text>
                 </View>
-                <Text style={styles.cardTitle}>Tambah Makanan</Text>
+                <Text style={styles.cardTitle}>
+                  {isProcessing ? "Memproses AI..." : "Tambah Makanan"}
+                </Text>
                 <Text style={styles.cardSubtitle}>
-                  Foto makananmu untuk mulai melacak
+                  {isProcessing
+                    ? "Mohon tunggu sebentar"
+                    : "Foto makananmu untuk mulai melacak"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
+
+          <TouchableOpacity
+            style={[styles.actionCard, styles.secondaryCard]}
+            onPress={selectFromGallery}
+            activeOpacity={isProcessing ? 1 : 0.8}
+            disabled={isProcessing}
+          >
+            <LinearGradient
+              colors={
+                isProcessing ? ["#CCCCCC", "#AAAAAA"] : ["#FF9800", "#F57C00"]
+              }
+              style={styles.cardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.cardIcon}>
+                <Text style={styles.iconEmoji}>
+                  {isProcessing ? "⏳" : "🖼️"}
+                </Text>
+              </View>
+              <Text style={styles.cardTitle}>
+                {isProcessing ? "Memproses AI..." : "Pilih dari Galeri"}
+              </Text>
+              <Text style={styles.cardSubtitle}>
+                {isProcessing
+                  ? "Mohon tunggu sebentar"
+                  : "Gunakan foto yang sudah ada"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionCard, styles.secondaryCard]}
