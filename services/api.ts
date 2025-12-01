@@ -1,11 +1,14 @@
 import { FoodItem, UploadResponse } from "@/types";
+import { uploadAsync } from "expo-file-system";
 import { Platform } from "react-native";
+import { FileSystemUploadType } from "./../node_modules/expo-file-system/src/legacy/FileSystem.types";
 
 const getAPIBaseURL = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
+  if (Platform.OS === "web") return "http://localhost:5000";
   return Platform.OS === "android"
     ? "http://10.0.2.2:5000"
     : "http://localhost:5000";
@@ -17,19 +20,13 @@ const IS_MOCK_MODE = false;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const uploadFoodImageReal = async (
-  imageUri: string
-): Promise<UploadResponse> => {
-  const formData = new FormData();
-
-  formData.append("image", {
-    uri: imageUri,
-    name: `photo_${Date.now()}.jpg`,
-    type: "image/jpeg",
-  } as any);
-
+const uploadViaWeb = async (imageUri: string): Promise<UploadResponse> => {
   try {
-    console.log(`Sending image to Flask: ${API_BASE_URL}/classify`);
+    const imgResponse = await fetch(imageUri);
+    const blob = await imgResponse.blob();
+
+    const formData = new FormData();
+    formData.append("image", blob, "upload.jpg");
 
     const response = await fetch(`${API_BASE_URL}/classify`, {
       method: "POST",
@@ -40,16 +37,44 @@ const uploadFoodImageReal = async (
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Backend error:", errorText);
-      return {
-        success: false,
-        message: `Server error: ${response.status}. ${errorText}`,
-      };
+      throw new Error(`Server error: ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log("Response from Flask + Gemini:", result);
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+const uploadFoodImageReal = async (
+  imageUri: string
+): Promise<UploadResponse> => {
+  try {
+    let result: any;
+
+    if (Platform.OS === "web") {
+      console.log("Environment: WEB detected. Using fetch...");
+      result = await uploadViaWeb(imageUri);
+    }
+
+    else {
+      console.log("Environment: NATIVE detected. Using FileSystem...");
+      const response = await uploadAsync(`${API_BASE_URL}/classify`, imageUri, {
+        fieldName: "image",
+        httpMethod: "POST",
+        uploadType: FileSystemUploadType.MULTIPART,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (response.status !== 200) {
+        return { success: false, message: `Server error: ${response.status}` };
+      }
+      result = JSON.parse(response.body);
+    }
+
+    console.log("Backend Result:", result);
 
     if (!result.label || !result.expiryDate) {
       return {
@@ -76,13 +101,12 @@ const uploadFoodImageReal = async (
     console.error("Upload error:", error);
     return {
       success: false,
-      message: `Gagal terhubung ke server. Pastikan Flask menyala di port 5000. Error: ${error}`,
+      message: `Gagal terhubung ke server (${API_BASE_URL}). Error: ${error}`,
     };
   }
 };
 
 const getInventoryReal = async (): Promise<FoodItem[]> => {
-  console.log("API: Mengambil data inventaris lokal...");
   await delay(500);
   return [...mockInventoryData];
 };
