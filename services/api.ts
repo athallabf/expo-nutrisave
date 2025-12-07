@@ -1,145 +1,101 @@
-import { FoodItem, UploadResponse } from "@/types";
-import { uploadAsync } from "expo-file-system";
-import { Platform } from "react-native";
+// services/api.ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FoodItem, UploadResponse, FunFactResponse } from "@/types";
 import { FileSystemUploadType } from "./../node_modules/expo-file-system/src/legacy/FileSystem.types";
+import { uploadAsync } from "./../node_modules/expo-file-system/src/legacy/FileSystem";
+import { Platform } from "react-native";
 
 const getAPIBaseURL = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-
-  if (Platform.OS === "web") return "http://localhost:5000";
-  return Platform.OS === "android"
-    ? "http://10.0.2.2:5000"
-    : "http://localhost:5000";
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  if (Platform.OS === "android") return "http://10.0.2.2:5000"; 
+  return "http://localhost:5000";
 };
 
 const API_BASE_URL = getAPIBaseURL();
+const INVENTORY_KEY = "food_inventory_storage";
 
-const IS_MOCK_MODE = false;
+// --- API FLASK INTERACTION ---
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const uploadViaWeb = async (imageUri: string): Promise<UploadResponse> => {
+export const getFunFact = async (): Promise<string> => {
   try {
-    const imgResponse = await fetch(imageUri);
-    const blob = await imgResponse.blob();
-
-    const formData = new FormData();
-    formData.append("image", blob, "upload.jpg");
-
-    const response = await fetch(`${API_BASE_URL}/classify`, {
-      method: "POST",
-      body: formData,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
-
-    return await response.json();
+    const response = await fetch(`${API_BASE_URL}/funfact-today`);
+    const data: FunFactResponse = await response.json();
+    return data.funfact || "Makan buah itu sehat!";
   } catch (error) {
-    throw error;
+    console.log("Funfact Error:", error);
+    return "Tahukah kamu? Menyimpan sayuran di suhu terlalu rendah bisa membuatnya cepat layu!";
   }
 };
 
-const uploadFoodImageReal = async (
-  imageUri: string
-): Promise<UploadResponse> => {
+
+export const uploadFoodImage = async (imageUri: string): Promise<UploadResponse> => {
   try {
-    let result: any;
+    console.log("Uploading to:", `${API_BASE_URL}/classify`);
+    const response = await uploadAsync(`${API_BASE_URL}/classify`, imageUri, {
+      fieldName: "image",
+      httpMethod: "POST",
+      uploadType: FileSystemUploadType.MULTIPART,
+      headers: { Accept: "application/json" },
+    });
 
-    if (Platform.OS === "web") {
-      console.log("Environment: WEB detected. Using fetch...");
-      result = await uploadViaWeb(imageUri);
+    if (response.status !== 200) {
+      return { success: false, message: `Server error: ${response.status}` };
     }
 
-    else {
-      console.log("Environment: NATIVE detected. Using FileSystem...");
-      const response = await uploadAsync(`${API_BASE_URL}/classify`, imageUri, {
-        fieldName: "image",
-        httpMethod: "POST",
-        uploadType: FileSystemUploadType.MULTIPART,
-        headers: {
-          Accept: "application/json",
-        },
-      });
-
-      if (response.status !== 200) {
-        return { success: false, message: `Server error: ${response.status}` };
-      }
-      result = JSON.parse(response.body);
-    }
-
-    console.log("Backend Result:", result);
-
-    if (!result.label || !result.expiryDate) {
-      return {
-        success: false,
-        message: "Backend tidak mengembalikan label atau tanggal expiry.",
-      };
-    }
-
-    const newItem: FoodItem = {
-      id: String(Date.now()),
-      name: result.label,
-      expiryDate: result.expiryDate,
-      addedAt: new Date().toISOString(),
-    };
-
-    mockInventoryData.push(newItem);
-
+    const result = JSON.parse(response.body);
     return {
       success: true,
       label: result.label,
-      item: newItem,
+      expiryDate: result.expiryDate,
+      condition: result.condition, // fresh, ripe, etc
+      tips: result.tips,
     };
   } catch (error) {
     console.error("Upload error:", error);
-    return {
-      success: false,
-      message: `Gagal terhubung ke server (${API_BASE_URL}). Error: ${error}`,
-    };
+    return { success: false, message: "Gagal terhubung ke AI server." };
   }
 };
 
-const getInventoryReal = async (): Promise<FoodItem[]> => {
-  await delay(500);
-  return [...mockInventoryData];
+// --- LOCAL STORAGE (INVENTORY) ---
+
+export const getInventory = async (): Promise<FoodItem[]> => {
+  try {
+    const jsonValue = await AsyncStorage.getItem(INVENTORY_KEY);
+    return jsonValue != null ? JSON.parse(jsonValue) : [];
+  } catch (e) {
+    console.error("Read Error", e);
+    return [];
+  }
 };
 
-const mockInventoryData: FoodItem[] = [
-  {
-    id: "1",
-    name: "Contoh Susu",
-    expiryDate: "2025-12-25",
-    addedAt: new Date().toISOString(),
-  },
-];
-
-const getInventoryMock = async (): Promise<FoodItem[]> => {
-  await delay(1000);
-  return [...mockInventoryData];
+export const saveItemToStorage = async (item: FoodItem) => {
+  try {
+    const currentItems = await getInventory();
+    const newItems = [...currentItems, item];
+    await AsyncStorage.setItem(INVENTORY_KEY, JSON.stringify(newItems));
+  } catch (e) {
+    console.error("Save Error", e);
+  }
 };
 
-const uploadFoodImageMock = async (
-  imageUri: string
-): Promise<UploadResponse> => {
-  await delay(2000);
-  const newItem: FoodItem = {
-    id: String(Date.now()),
-    name: "Mock Apple",
-    expiryDate: "2025-12-30",
-    addedAt: new Date().toISOString(),
-  };
-  mockInventoryData.push(newItem);
-  return { success: true, label: "Mock Apple", item: newItem };
+export const updateItemInStorage = async (updatedItem: FoodItem) => {
+  try {
+    const currentItems = await getInventory();
+    const newItems = currentItems.map(item => 
+      item.id === updatedItem.id ? updatedItem : item
+    );
+    await AsyncStorage.setItem(INVENTORY_KEY, JSON.stringify(newItems));
+  } catch (e) {
+    console.error("Update Error", e);
+  }
 };
 
-export const getInventory = IS_MOCK_MODE ? getInventoryMock : getInventoryReal;
-export const uploadFoodImage = IS_MOCK_MODE
-  ? uploadFoodImageMock
-  : uploadFoodImageReal;
+export const deleteItemFromStorage = async (id: string) => {
+  try {
+    const currentItems = await getInventory();
+    const newItems = currentItems.filter(item => item.id !== id);
+    await AsyncStorage.setItem(INVENTORY_KEY, JSON.stringify(newItems));
+  } catch (e) {
+    console.error("Delete Error", e);
+  }
+};

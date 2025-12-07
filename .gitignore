@@ -43,3 +43,7 @@ app-example
 /android
 
 pemmob*.json
+
+# Environment files
+.env
+.env.local
