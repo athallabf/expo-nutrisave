@@ -22,6 +22,7 @@ export default function TabLayout() {
           shadowRadius: 8,
           height: Platform.OS === "ios" ? 90 : 65,
           paddingBottom: Platform.OS === "ios" ? 25 : 10,
+          marginBottom: 32,
           paddingTop: 1
         },
         tabBarLabelStyle: {
@@ -59,7 +60,7 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="recipes"
+        name="recipe"
         options={{
           title: "Masak",
           tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={26} color={color} />
