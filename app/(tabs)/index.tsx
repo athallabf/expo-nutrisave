@@ -24,7 +24,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as api from "../../services/api";
 import { FoodItem } from "@/types";
 
-// Helper Translate
 const translateCondition = (cond: string) => {
   const map: any = {
     'fresh': 'Segar',
@@ -35,7 +34,6 @@ const translateCondition = (cond: string) => {
   return map[cond] || cond;
 };
 
-// Component Tombol Aksi (Kamera/Galeri)
 const ActionButton = ({ title, subtitle, icon, color, onPress, disabled, loading }: any) => (
   <TouchableOpacity
     style={[styles.actionCard, { backgroundColor: color }]}
@@ -54,11 +52,9 @@ const ActionButton = ({ title, subtitle, icon, color, onPress, disabled, loading
   </TouchableOpacity>
 );
 
-// Component Modal Hasil Scan
 const ResultModal = ({ visible, data, onClose, onSave }: any) => {
   const [note, setNote] = useState("");
 
-  // Reset note saat modal muncul baru
   useEffect(() => {
     if (visible) setNote("");
   }, [visible, data]);
@@ -152,7 +148,6 @@ const HomeScreen = () => {
   const [scanResult, setScanResult] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Load Initial Data
   useEffect(() => {
     api.getFunFact().then(setFunFact);
     registerForPushNotificationsAsync();
@@ -164,7 +159,6 @@ const HomeScreen = () => {
     }).start();
   }, [fadeAnim]);
 
-  // Update total items saat layar fokus
   useFocusEffect(
     useCallback(() => {
       const loadCount = async () => {
@@ -175,12 +169,9 @@ const HomeScreen = () => {
     }, [])
   );
 
-  // --- LOGIC UTAMA (DIPAKAI KAMERA & GALERI) ---
   const processImage = async (imageUri: string) => {
     setIsProcessing(true);
     try {
-      // Kita panggil API, tapi JANGAN langsung save.
-      // Kita setScanResult dulu agar Modal muncul.
       const result = await api.uploadFoodImage(imageUri);
       
       if (result.success) {
@@ -202,7 +193,6 @@ const HomeScreen = () => {
     }
   };
 
-  // 1. Fungsi Buka Kamera (SAMA FLOW DENGAN GALERI)
   const takePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     
@@ -215,16 +205,14 @@ const HomeScreen = () => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.5,
-      aspect: [1, 1] // Optional: agar kotak
+      aspect: [1, 1]
     });
 
     if (!result.canceled) {
-      // Panggil fungsi proses yang sama!
       processImage(result.assets[0].uri);
     }
   };
 
-  // 2. Fungsi Buka Galeri
   const selectFromGallery = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -236,7 +224,6 @@ const HomeScreen = () => {
     }
   };
 
-  // 3. Simpan ke Inventory (Dipanggil dari Modal)
   const saveToInventory = async (note: string) => {
     const newItem: FoodItem = {
       id: Date.now().toString(),
@@ -245,15 +232,14 @@ const HomeScreen = () => {
       condition: scanResult.condition,
       tips: scanResult.tips,
       imageUri: scanResult.uri,
-      note: note, // Note masuk di sini
+      note: note, 
       createdAt: Date.now()
     };
     
     await api.saveItemToStorage(newItem);
-    setScanResult(null); // Tutup Modal
-    setTotalItems(prev => prev + 1); // Update UI Angka
-    
-    // Opsional: Langsung pindah ke tab Inventory atau toast
+    setScanResult(null); 
+    setTotalItems(prev => prev + 1);
+
     Alert.alert("Berhasil", "Makanan disimpan ke Inventaris!", [
       { text: "OK", onPress: () => router.push("/(tabs)/inventory") }
     ]);
@@ -289,18 +275,16 @@ const HomeScreen = () => {
 
         <Text style={styles.sectionTitle}>Aksi Cepat</Text>
         <View style={styles.actionContainer}>
-          {/* TOMBOL KAMERA */}
           <ActionButton
             title={isProcessing ? "Menganalisis..." : "Foto Makanan"}
             subtitle="Identifikasi AI & Kondisi"
             icon="camera"
             color="#10B981"
-            onPress={takePhoto} // LANGSUNG PANGGIL FUNGSI LOKAL
+            onPress={takePhoto} 
             disabled={isProcessing}
             loading={isProcessing}
           />
           
-          {/* TOMBOL GALERI */}
           <ActionButton
             title="Upload Galeri"
             subtitle="Pilih dari foto yang ada"
@@ -308,11 +292,11 @@ const HomeScreen = () => {
             color="#3B82F6"
             onPress={selectFromGallery}
             disabled={isProcessing}
+            loading={isProcessing}
           />
         </View>
       </ScrollView>
 
-      {/* MODAL HASIL (Akan muncul baik dari Kamera maupun Galeri) */}
       <ResultModal 
         visible={!!scanResult} 
         data={scanResult} 
@@ -346,8 +330,7 @@ const styles = StyleSheet.create({
   tipHeader: { marginBottom: 8 },
   tipCardTitle: { fontSize: 16, fontWeight: "bold", color: "#065F46" },
   tipContent: { fontSize: 14, color: "#047857", lineHeight: 22 },
-  
-  // Modal Styles
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },

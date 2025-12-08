@@ -1,20 +1,17 @@
 // services/api.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FoodItem, UploadResponse, FunFactResponse } from "@/types";
+import { FoodItem, UploadResponse, FunFactResponse, Recipe } from "@/types";
 import { FileSystemUploadType } from "./../node_modules/expo-file-system/src/legacy/FileSystem.types";
 import { uploadAsync } from "./../node_modules/expo-file-system/src/legacy/FileSystem";
 import { Platform } from "react-native";
 
 const getAPIBaseURL = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
-  if (Platform.OS === "android") return "http://10.0.2.2:5000"; 
-  return "http://localhost:5000";
+  if (Platform.OS === "android") return "https://fridgesense.loca.lt"; 
+  return "https://fridgesense.loca.lt";
 };
 
 const API_BASE_URL = getAPIBaseURL();
 const INVENTORY_KEY = "food_inventory_storage";
-
-// --- API FLASK INTERACTION ---
 
 export const getFunFact = async (): Promise<string> => {
   try {
@@ -97,5 +94,20 @@ export const deleteItemFromStorage = async (id: string) => {
     await AsyncStorage.setItem(INVENTORY_KEY, JSON.stringify(newItems));
   } catch (e) {
     console.error("Delete Error", e);
+  }
+};
+
+export const getRecipeSuggestions = async (ingredients: string[]): Promise<Recipe[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/suggest-recipes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ingredients }),
+    });
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Recipe API Error:", error);
+    return [];
   }
 };

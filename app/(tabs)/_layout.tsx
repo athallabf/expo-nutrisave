@@ -1,4 +1,3 @@
-// app/(tabs)/_layout.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
@@ -39,26 +38,31 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Beranda",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "home" : "home-outline"}
-              size={focused ? 30 : 26}
-              color={color}
-            />
-          )
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "home" : "home-outline"} size={26} color={color} />
         }}
       />
+      
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Kalender",
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} size={26} color={color} />
+        }}
+      />
+
       <Tabs.Screen
         name="inventory"
         options={{
           title: "Inventaris",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "list" : "list-outline"}
-              size={focused ? 30 : 26}
-              color={color}
-            />
-          )
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "list" : "list-outline"} size={26} color={color} />
+        }}
+      />
+
+      <Tabs.Screen
+        name="recipes"
+        options={{
+          title: "Masak",
+          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={26} color={color} />
         }}
       />
     </Tabs>

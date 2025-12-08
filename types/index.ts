@@ -10,6 +10,12 @@ export interface FoodItem {
   createdAt: number;
 }
 
+export interface Recipe {
+  title: string;
+  missingIngredients: string[];
+  steps: string[];
+}
+
 export interface UploadSuccessResponse {
   success: boolean;
   message?: string;

@@ -19,28 +19,45 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from 'expo-notifications';
 import * as api from "../../services/api";
 
-// --- HELPER TRANSLATE & WARNA ---
 const translateCondition = (cond: string) => {
   const map: Record<string, string> = {
     'fresh': 'Segar',
     'ripe': 'Matang',
-    'overripe': 'Terlalu Matang', // Tambahan
+    'overripe': 'Terlalu Matang', 
     'rotten': 'Busuk'
   };
   return map[cond] || cond;
 };
 
+const getRealTimeCondition = (item: FoodItem) => {
+  const now = new Date();
+  const expiry = new Date(item.expiryDate);
+  const diffTime = expiry.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  // Jika barang sudah kadaluwarsa -> Otomatis dianggap BUSUK/ROTTEN
+  if (diffDays < 0) return 'rotten';
+
+  // Jika sisa 0-2 hari -> Otomatis dianggap TERLALU MATANG/OVERRIPE
+  if (diffDays <= 2) return 'overripe';
+
+  // Jika sisa 3-5 hari, tapi status aslinya 'fresh', kita turunkan jadi RIPE
+  if (diffDays <= 5 && item.condition === 'fresh') return 'ripe';
+
+  // Selain itu, gunakan kondisi asli dari hasil scan/input manual
+  return item.condition;
+};
+
 const getConditionColor = (cond: string) => {
   switch (cond) {
-    case 'fresh': return { bg: '#D1FAE5', text: '#059669' };    // Hijau
-    case 'ripe': return { bg: '#FEF3C7', text: '#D97706' };     // Kuning
-    case 'overripe': return { bg: '#FFEDD5', text: '#EA580C' }; // Oranye
-    case 'rotten': return { bg: '#FEE2E2', text: '#DC2626' };   // Merah
+    case 'fresh': return { bg: '#D1FAE5', text: '#059669' };    
+    case 'ripe': return { bg: '#FEF3C7', text: '#D97706' };    
+    case 'overripe': return { bg: '#FFEDD5', text: '#EA580C' };
+    case 'rotten': return { bg: '#FEE2E2', text: '#DC2626' };  
     default: return { bg: '#F3F4F6', text: '#374151' };
   }
 };
 
-// --- Detail Modal ---
 const DetailModal = ({ item, visible, onClose, onDelete, onUpdate }: any) => {
   const [note, setNote] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -101,10 +118,9 @@ const DetailModal = ({ item, visible, onClose, onDelete, onUpdate }: any) => {
           )}
 
           <View style={styles.infoRow}>
-            {/* TAMPILAN KONDISI DI MODAL */}
             <View style={[styles.tag, { backgroundColor: conditionStyle.bg }]}>
               <Text style={{ color: conditionStyle.text, fontWeight: 'bold' }}>
-                {translateCondition(item.condition)}
+                {translateCondition(getRealTimeCondition(item))}
               </Text>
             </View>
             <Text style={{color: days < 0 ? 'red' : 'gray'}}>
@@ -172,22 +188,34 @@ const InventoryScreen = () => {
 
   useFocusEffect(useCallback(() => { loadInventory(); }, [loadInventory]));
 
-  // LOGIKA FILTER
   useEffect(() => {
     let result = items;
-    
-    // 1. Filter Nama
+
     if (search) {
       result = result.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
     }
 
-    // 2. Filter Kondisi (fresh, ripe, overripe, rotten)
     if (filter !== "All") {
       result = result.filter(i => i.condition === filter);
     }
 
     setFilteredItems(result);
   }, [search, filter, items]);
+
+  const confirmDelete = (id: string) => {
+    Alert.alert(
+      "Hapus Item?",
+      "Item ini akan dihapus permanen dari inventaris.",
+      [
+        { text: "Batal", style: "cancel" },
+        { 
+          text: "Hapus", 
+          style: "destructive", 
+          onPress: () => handleDelete(id) 
+        }
+      ]
+    );
+  };
 
   const handleDelete = async (id: string) => {
     await api.deleteItemFromStorage(id);
@@ -219,11 +247,10 @@ const InventoryScreen = () => {
           <Text style={[styles.itemName, { textTransform: 'capitalize' }]}>{item.name}</Text>
           <Text style={styles.expiryDate}>Exp: {formatDate(item.expiryDate)}</Text>
           
-          {/* Badge Kondisi di List */}
           <View style={{flexDirection: 'row', marginTop: 4}}>
              <View style={[styles.miniBadge, { backgroundColor: conditionStyle.bg }]}>
                 <Text style={[styles.miniBadgeText, { color: conditionStyle.text }]}>
-                   {translateCondition(item.condition)}
+                   {translateCondition(getRealTimeCondition(item))}
                 </Text>
              </View>
           </View>
@@ -262,7 +289,6 @@ const InventoryScreen = () => {
           />
         </View>
 
-        {/* 4 FILTER UTAMA SESUAI API */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop: 10}}>
           <FilterChip label="Semua" value="All" />
           <FilterChip label="Segar" value="fresh" />
@@ -279,8 +305,14 @@ const InventoryScreen = () => {
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadInventory} />}
         ListEmptyComponent={
-          <View style={styles.center}>
-            <Text style={{color: '#9CA3AF'}}>Tidak ada item dengan filter ini.</Text>
+          <View style={{alignItems: 'center', marginTop: 80, opacity: 0.5}}>
+            <Ionicons name="basket-outline" size={80} color="#9CA3AF" />
+            <Text style={{color: '#9CA3AF', marginTop: 10, fontSize: 16}}>
+                Belum ada makanan tersimpan.
+            </Text>
+            <Text style={{color: '#9CA3AF', fontSize: 14}}>
+                Scan belanjaanmu sekarang!
+            </Text>
           </View>
         }
       />
@@ -289,7 +321,7 @@ const InventoryScreen = () => {
         item={selectedItem} 
         visible={!!selectedItem} 
         onClose={() => setSelectedItem(null)} 
-        onDelete={handleDelete}
+        onDelete={confirmDelete}
         onUpdate={handleUpdate}
       />
     </View>
@@ -315,8 +347,6 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 16, fontWeight: "600", color: "#1F2937" },
   itemModalName: { fontSize: 22, fontWeight: "bold", color: "#111827" },
   expiryDate: { fontSize: 12, color: "#9CA3AF" },
-  
-  // Style Badge Kondisi (Baru)
   miniBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, alignSelf: 'flex-start' },
   miniBadgeText: { fontSize: 10, fontWeight: '700' },
 
